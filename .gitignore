@@ -1,5 +1,5 @@
-# === Kiro IDE (never publish) ===
-.kiro/
+# === Kiro IDE specs (excluded from git, not from IDE access) ===
+# Note: .kiro/ files are excluded via .git/info/exclude instead
 
 # === Rust ===
 target/
