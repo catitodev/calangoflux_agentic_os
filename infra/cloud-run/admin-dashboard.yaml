@@ -1,0 +1,53 @@
+# ============================================================
+# Admin Dashboard — React SPA (nginx)
+# Cloud Run Service Configuration
+# Scale-to-zero, serves static assets
+# ============================================================
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: admin-dashboard
+  labels:
+    app: calangoflux-agentic-os
+    component: admin-dashboard
+  annotations:
+    run.googleapis.com/launch-stage: GA
+    run.googleapis.com/read-only-filesystem: "true"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "2"
+        run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      containerConcurrency: 100
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/PROJECT_ID/admin-dashboard:TAG
+          ports:
+            - containerPort: 8084
+              name: http1
+          resources:
+            limits:
+              cpu: "500m"
+              memory: 128Mi
+          env:
+            - name: PORT
+              value: "8084"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 3

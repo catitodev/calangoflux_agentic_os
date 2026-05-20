@@ -1,0 +1,72 @@
+# ============================================================
+# CalangoVallum — Security Module (Rust)
+# Cloud Run Service Configuration
+# Always-on (min: 1) for continuous security monitoring
+# ============================================================
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: calango-vallum
+  labels:
+    app: calangoflux-agentic-os
+    component: calango-vallum
+  annotations:
+    run.googleapis.com/launch-stage: GA
+    run.googleapis.com/read-only-filesystem: "true"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "2"
+        run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/PROJECT_ID/calango-vallum:TAG
+          ports:
+            - containerPort: 8081
+              name: http1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            - name: PORT
+              value: "8081"
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-url
+                  key: latest
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-url
+                  key: latest
+            - name: SUPABASE_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: supabase-service-key
+                  key: latest
+            - name: RUST_LOG
+              value: "info,calango_vallum=debug"
+            - name: GOOGLE_CLOUD_PROJECT
+              value: "PROJECT_ID"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 3

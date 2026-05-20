@@ -1,0 +1,11 @@
+.git/
+.gitignore
+*.md
+.vscode/
+.kiro/
+Dockerfile
+.dockerignore
+*_test.go
+vendor/
+*.swp
+*.swo

@@ -1,0 +1,129 @@
+# ============================================================
+# CalangoFlux Agentic OS — Local Development Compose
+# Wires all services together with Redis for message bus
+# ============================================================
+# Usage:
+#   docker compose up --build        (build and start all)
+#   docker compose up redis          (start only Redis)
+#   docker compose up ironclaw       (start IronClaw + Redis)
+#   docker compose down -v           (stop and remove volumes)
+# ============================================================
+
+services:
+  # ─────────────────────────────────────────────────────────
+  # Infrastructure: Redis (Message Bus)
+  # ─────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # IronClaw — Agent OS Runtime (Rust)
+  # ─────────────────────────────────────────────────────────
+  ironclaw:
+    build:
+      context: .
+      dockerfile: ironclaw/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      REDIS_URL: "redis://redis:6379"
+      RUST_LOG: "info,ironclaw=debug"
+    depends_on:
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # CalangoVallum — Security Module (Rust)
+  # ─────────────────────────────────────────────────────────
+  calango-vallum:
+    build:
+      context: .
+      dockerfile: calango-vallum/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: "8081"
+      REDIS_URL: "redis://redis:6379"
+      RUST_LOG: "info,calango_vallum=debug"
+    depends_on:
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # PicoClaw — Ultra-lightweight Task Router (Go)
+  # ─────────────────────────────────────────────────────────
+  picoclaw:
+    build:
+      context: picoclaw
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: "8082"
+      REDIS_URL: "redis://redis:6379"
+    depends_on:
+      redis:
+        condition: service_healthy
+    read_only: true
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # OpenClaw — External Action Executor (Node.js)
+  # ─────────────────────────────────────────────────────────
+  openclaw:
+    build:
+      context: openclaw
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: "8083"
+      NODE_ENV: "production"
+      REDIS_URL: "redis://redis:6379"
+    depends_on:
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # Admin Dashboard — React SPA (nginx)
+  # ─────────────────────────────────────────────────────────
+  admin-dashboard:
+    build:
+      context: admin-dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "8084:8084"
+    environment:
+      PORT: "8084"
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    restart: unless-stopped
+
+volumes:
+  redis-data:

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.git/
+.gitignore
+*.md
+.vscode/
+.kiro/
+Dockerfile
+.dockerignore
+src/**/*.test.ts
+src/**/*.spec.ts
+coverage/
+.env*
+*.swp
+*.swo

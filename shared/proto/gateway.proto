@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package calangoflux.gateway;
+
+option go_package = "github.com/catitodev/calangoflux_agentic_os/picoclaw/proto";
+
+// API Gateway service definition for CalangoFlux Agentic OS.
+// Provides the public interface for CalangoBot and Admin Dashboard.
+
+service GatewayService {
+  // Submit a task to the Agentic OS pipeline.
+  rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
+
+  // Stream responses back to the client.
+  rpc StreamResponse(StreamRequest) returns (stream StreamResponseChunk);
+
+  // Health check endpoint.
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+
+  // Admin: list all agents with status.
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+
+  // Admin: kill an agent immediately.
+  rpc KillAgent(KillAgentRequest) returns (KillAgentResponse);
+}
+
+// --- Task Submission ---
+
+message SubmitTaskRequest {
+  string message = 1;
+  string session_id = 2;
+  map<string, string> metadata = 3;
+}
+
+message SubmitTaskResponse {
+  string task_id = 1;
+  string status = 2;
+}
+
+// --- Streaming ---
+
+message StreamRequest {
+  string task_id = 1;
+}
+
+message StreamResponseChunk {
+  string content = 1;
+  bool done = 2;
+  string agent_id = 3;
+}
+
+// --- Health Check ---
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  int64 uptime_seconds = 2;
+}
+
+// --- Admin Operations ---
+
+message ListAgentsRequest {}
+
+message ListAgentsResponse {
+  repeated AgentInfo agents = 1;
+}
+
+message AgentInfo {
+  string agent_id = 1;
+  string status = 2;       // "healthy", "degraded", "dead"
+  double cpu_usage = 3;
+  uint64 memory_bytes = 4;
+  int64 uptime_seconds = 5;
+  double messages_per_second = 6;
+}
+
+message KillAgentRequest {
+  string agent_id = 1;
+}
+
+message KillAgentResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- Error Response ---
+
+// Standardized error response returned by the gateway on failures.
+message ErrorResponse {
+  ErrorCode code = 1;
+  string message = 2;
+  string component = 3;
+  uint64 timestamp = 4;
+  optional string request_id = 5;
+  optional uint64 retry_after = 6;
+}
+
+// Error code categories:
+//   1xxx — Authentication/Authorization
+//   2xxx — Sandbox/Isolation
+//   3xxx — Message Bus
+//   4xxx — Agent Lifecycle
+//   5xxx — Action Execution
+//   6xxx — Security
+//   7xxx — Deployment
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  // 1xxx — Auth
+  UNAUTHORIZED = 1;
+  FORBIDDEN = 2;
+  TOKEN_EXPIRED = 3;
+  // 2xxx — Sandbox
+  SANDBOX_VIOLATION = 4;
+  RESOURCE_EXHAUSTED = 5;
+  SANDBOX_TERMINATED = 6;
+  // 3xxx — Message Bus
+  BUS_UNAVAILABLE = 7;
+  MESSAGE_REJECTED = 8;
+  QUEUE_FULL = 9;
+  // 4xxx — Agent Lifecycle
+  AGENT_UNHEALTHY = 10;
+  AGENT_DEAD = 11;
+  AGENT_NOT_FOUND = 12;
+  // 5xxx — Action Execution
+  ACTION_TIMEOUT = 13;
+  ACTION_FAILED = 14;
+  RETRY_EXHAUSTED = 15;
+  // 6xxx — Security
+  ACCESS_DENIED = 16;
+  CREDENTIAL_EXPOSURE = 17;
+  ANOMALY_DETECTED = 18;
+  // 7xxx — Deployment
+  DEPLOY_FAILED = 19;
+  ROLLBACK_TRIGGERED = 20;
+  VERSION_NOT_FOUND = 21;
+}

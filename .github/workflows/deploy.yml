@@ -1,0 +1,439 @@
+name: Deploy Pipeline
+
+on:
+  push:
+    branches: [main]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/calangoflux
+  WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+  SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+jobs:
+  # ─── Stage 1: Lint ───────────────────────────────────────────────────────────
+  lint-rust:
+    name: Lint (Rust - clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  lint-go:
+    name: Lint (Go - golangci-lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: picoclaw
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - uses: golangci/golangci-lint-action@v4
+        with:
+          working-directory: picoclaw
+
+  lint-typescript:
+    name: Lint (TypeScript - eslint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            openclaw/package-lock.json
+            admin-dashboard/package-lock.json
+      - run: npm ci
+        working-directory: openclaw
+      - run: npm run lint
+        working-directory: openclaw
+      - run: npm ci
+        working-directory: admin-dashboard
+      - run: npm run lint
+        working-directory: admin-dashboard
+
+  # ─── Stage 2: Unit Tests ─────────────────────────────────────────────────────
+  unit-test-rust:
+    name: Unit Test (Rust)
+    needs: [lint-rust]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+
+  unit-test-go:
+    name: Unit Test (Go)
+    needs: [lint-go]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: picoclaw
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go test ./... -v -short
+
+  unit-test-typescript:
+    name: Unit Test (TypeScript)
+    needs: [lint-typescript]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            openclaw/package-lock.json
+            admin-dashboard/package-lock.json
+      - run: npm ci
+        working-directory: openclaw
+      - run: npx vitest run
+        working-directory: openclaw
+      - run: npm ci
+        working-directory: admin-dashboard
+      - run: npx vitest run
+        working-directory: admin-dashboard
+
+  # ─── Stage 3: Property Tests (100+ iterations) ──────────────────────────────
+  property-test-rust:
+    name: Property Test (Rust - proptest)
+    needs: [unit-test-rust]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace -- --include-ignored proptest
+        env:
+          PROPTEST_CASES: 100
+
+  property-test-go:
+    name: Property Test (Go - rapid)
+    needs: [unit-test-go]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: picoclaw
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go test ./... -v -run "Property|Rapid" -count=1
+
+  property-test-typescript:
+    name: Property Test (TypeScript - fast-check)
+    needs: [unit-test-typescript]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            openclaw/package-lock.json
+            admin-dashboard/package-lock.json
+      - run: npm ci
+        working-directory: openclaw
+      - run: npx vitest run --testPathPattern="property|pbt"
+        working-directory: openclaw
+      - run: npm ci
+        working-directory: admin-dashboard
+      - run: npx vitest run --testPathPattern="property|pbt"
+        working-directory: admin-dashboard
+
+  # ─── Stage 4: Build and Push Docker Images ──────────────────────────────────
+  build:
+    name: Build & Push Docker Images
+    needs: [property-test-rust, property-test-go, property-test-typescript]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set image tag
+        id: tag
+        run: echo "TAG=v$(date +%Y%m%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push ironclaw
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ironclaw/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/ironclaw:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push calango-vallum
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: calango-vallum/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/calango-vallum:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push picoclaw
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: picoclaw/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/picoclaw:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push openclaw
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: openclaw/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/openclaw:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push admin-dashboard
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: admin-dashboard/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/admin-dashboard:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+    outputs:
+      image_tag: ${{ steps.tag.outputs.TAG }}
+
+  # ─── Stage 5: Integration Tests ─────────────────────────────────────────────
+  integration:
+    name: Integration Tests
+    needs: [build]
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Rust integration tests
+        env:
+          REDIS_URL: redis://localhost:6379
+        run: cargo test --workspace -- --ignored integration
+
+      - name: Run Go integration tests
+        env:
+          REDIS_URL: redis://localhost:6379
+        run: go test ./... -v -run "Integration"
+        working-directory: picoclaw
+
+      - name: Run TypeScript integration tests
+        env:
+          REDIS_URL: redis://localhost:6379
+        run: |
+          npm ci
+          npx vitest run --testPathPattern="integration"
+        working-directory: openclaw
+
+  # ─── Stage 6: Deploy to Staging ──────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [integration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy ironclaw to staging
+        run: |
+          gcloud run deploy ironclaw-staging \
+            --image ${{ env.REGISTRY }}/ironclaw:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }} \
+            --no-traffic \
+            --tag staging
+
+      - name: Deploy calango-vallum to staging
+        run: |
+          gcloud run deploy calango-vallum-staging \
+            --image ${{ env.REGISTRY }}/calango-vallum:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }} \
+            --no-traffic \
+            --tag staging
+
+      - name: Deploy picoclaw to staging
+        run: |
+          gcloud run deploy picoclaw-staging \
+            --image ${{ env.REGISTRY }}/picoclaw:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }} \
+            --no-traffic \
+            --tag staging
+
+      - name: Deploy openclaw to staging
+        run: |
+          gcloud run deploy openclaw-staging \
+            --image ${{ env.REGISTRY }}/openclaw:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }} \
+            --no-traffic \
+            --tag staging
+
+      - name: Deploy admin-dashboard to staging
+        run: |
+          gcloud run deploy admin-dashboard-staging \
+            --image ${{ env.REGISTRY }}/admin-dashboard:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }} \
+            --no-traffic \
+            --tag staging
+
+  # ─── Stage 7: E2E Tests against Staging ─────────────────────────────────────
+  e2e:
+    name: E2E Tests
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run E2E tests against staging
+        env:
+          STAGING_URL: https://ironclaw-staging-${{ secrets.GCP_PROJECT_HASH }}.run.app
+        run: |
+          npm ci
+          npx vitest run --testPathPattern="e2e"
+        working-directory: openclaw
+
+  # ─── Stage 8: Deploy to Production (Manual Gate) ─────────────────────────────
+  deploy-prod:
+    name: Deploy to Production
+    needs: [e2e, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    # Manual gate: requires approval in GitHub Environment settings
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy ironclaw to production
+        run: |
+          gcloud run deploy ironclaw \
+            --image ${{ env.REGISTRY }}/ironclaw:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }}
+
+      - name: Deploy calango-vallum to production
+        run: |
+          gcloud run deploy calango-vallum \
+            --image ${{ env.REGISTRY }}/calango-vallum:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }}
+
+      - name: Deploy picoclaw to production
+        run: |
+          gcloud run deploy picoclaw \
+            --image ${{ env.REGISTRY }}/picoclaw:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }}
+
+      - name: Deploy openclaw to production
+        run: |
+          gcloud run deploy openclaw \
+            --image ${{ env.REGISTRY }}/openclaw:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }}
+
+      - name: Deploy admin-dashboard to production
+        run: |
+          gcloud run deploy admin-dashboard \
+            --image ${{ env.REGISTRY }}/admin-dashboard:${{ needs.build.outputs.image_tag }} \
+            --region ${{ env.REGION }}
+
+      - name: Clean up old images (keep last 3)
+        run: |
+          for SERVICE in ironclaw calango-vallum picoclaw openclaw admin-dashboard; do
+            gcloud artifacts docker images list ${{ env.REGISTRY }}/$SERVICE \
+              --sort-by=~CREATE_TIME \
+              --format="value(DIGEST)" | tail -n +4 | while read -r DIGEST; do
+              gcloud artifacts docker images delete "${{ env.REGISTRY }}/$SERVICE@$DIGEST" --quiet --delete-tags
+            done
+          done

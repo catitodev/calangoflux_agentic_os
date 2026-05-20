@@ -1,0 +1,31 @@
+# CalangoFlux Agentic OS — Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars to version control.
+
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+
+# Memorystore Redis — Basic tier keeps costs within $50/month budget
+redis_tier           = "BASIC"
+redis_memory_size_gb = 1
+redis_version        = "REDIS_7_0"
+
+# Artifact Registry
+artifact_registry_repository = "calangoflux"
+
+# VPC Connector
+vpc_connector_name = "calangoflux-connector"
+vpc_connector_cidr = "10.8.0.0/28"
+
+# Environment
+environment = "dev"
+
+# Secrets to create in Secret Manager
+secrets = {
+  "gemini-api-key"       = "Google AI Studio API key"
+  "supabase-url"         = "Supabase project URL"
+  "supabase-anon-key"    = "Supabase anonymous key"
+  "supabase-service-key" = "Supabase service role key"
+  "jwt-secret"           = "JWT signing secret for API Gateway"
+  "telegram-bot-token"   = "Telegram bot token for alerts"
+}

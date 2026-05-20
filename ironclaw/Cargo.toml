@@ -1,0 +1,30 @@
+[package]
+name = "ironclaw"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CalangoFlux Agentic OS — Agent Runtime (WASM sandboxing, API Gateway, Message Bus, Agent Registry)"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+redis = { workspace = true }
+uuid = { workspace = true }
+sha2 = { workspace = true }
+async-trait = "0.1"
+hex = "0.4"
+wasmtime = "27"
+tonic = "0.12"
+prost = "0.13"
+jsonwebtoken = "9"
+axum = "0.8"
+
+[dev-dependencies]
+proptest = "1"
+tokio-test = "0.4"
+wat = "1"

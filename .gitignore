@@ -1,0 +1,34 @@
+# === Kiro IDE (never publish) ===
+.kiro/
+
+# === Rust ===
+target/
+Cargo.lock
+
+# === Go ===
+picoclaw/picoclaw
+
+# === Node.js ===
+node_modules/
+dist/
+*.tsbuildinfo
+
+# === Environment & Secrets ===
+.env
+.env.*
+*.pem
+*.key
+terraform.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
