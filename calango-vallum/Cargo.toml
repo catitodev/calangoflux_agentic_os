@@ -6,6 +6,14 @@ license.workspace = true
 repository.workspace = true
 description = "CalangoFlux Agentic OS — Security Module (SHIELD, SPEAR, CHAIN, HEALER agents)"
 
+[[bin]]
+name = "calango-vallum"
+path = "src/main.rs"
+
+[lib]
+name = "calango_vallum"
+path = "src/lib.rs"
+
 [dependencies]
 tokio = { workspace = true }
 serde = { workspace = true }

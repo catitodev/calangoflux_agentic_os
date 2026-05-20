@@ -82,10 +82,10 @@ Em vez de workflows visuais frágeis (n8n, Make), o sistema roda **agentes autô
 <details>
 <summary><strong>🛡️ CalangoVallum — Security Module (Rust)</strong></summary>
 
-- **SHIELD** — monitora todas as mensagens em tempo real (<500ms latência)
-- **SPEAR** — testes adversariais a cada 6h (prompt injection, credential leakage)
-- **CHAIN** — audit trail imutável via SHA-256 hash chain → Supabase
-- **HEALER** — detecta falha → Gemini analisa → gera fix → testa → deploy atômico
+- **SHIELD** — monitora todas as mensagens em tempo real (<500ms latência), detecta exposição de credenciais (`sk-`, `AKIA`, `ghp_`, Bearer tokens) e anomalias (>2 desvios padrão da baseline 24h)
+- **SPEAR** — testes adversariais automáticos a cada 6h: prompt injection, credential leakage, resource exhaustion, unauthorized actions — em sandbox clonado sem afetar produção
+- **CHAIN** — audit trail **imutável** via SHA-256 hash chain: cada entrada contém o hash da anterior, qualquer adulteração é detectável. Persiste no Supabase com latência <2s. Registra toda mensagem, evento de lifecycle e violação de segurança
+- **HEALER** — detecta falha → Gemini analisa logs + últimas 10 mensagens → gera fix → testa em sandbox (5 queries) → deploy atômico ou rollback. Rate limit: 3 tentativas/agente/hora
 
 </details>
 
@@ -215,9 +215,33 @@ O CalangoFlux Agentic OS foi projetado com **segurança como princípio central*
 - 🔐 **Zero-trust interno** — CalangoVallum valida toda comunicação inter-agente
 - 🏖️ **WASM Sandbox** — cada agente isolado com limites de CPU, memória e host calls
 - 🔑 **Credential Vault** — chaves nunca expostas; apenas tokens com TTL 5min
-- 📋 **Audit Trail imutável** — SHA-256 hash chain, qualquer adulteração é detectável
+- 📋 **CHAIN — Audit Trail Imutável** — SHA-256 hash chain, qualquer adulteração é detectável
 - 🛡️ **SHIELD** — detecta exposição de credenciais em tempo real (<500ms)
 - 🧪 **SPEAR** — testes adversariais automáticos a cada 6 horas
+
+### 📋 CHAIN — Audit Trail Imutável
+
+O **CHAIN Agent** é o coração da rastreabilidade do sistema. Cada evento gera uma entrada com:
+
+```
+entry_hash = SHA-256(timestamp + actor + action_type + payload_hash + previous_hash)
+```
+
+Isso forma uma **cadeia imutável**: qualquer modificação em qualquer entrada invalida todos os hashes subsequentes, tornando adulterações imediatamente detectáveis.
+
+**O que é registrado:**
+- Toda mensagem inter-agente (sender, destination, tipo, timestamp)
+- Eventos de lifecycle (AgentStarted, AgentStopped, AgentRestarted)
+- Violações de segurança detectadas pelo SHIELD
+- Acessos ao Credential Vault
+- Mudanças de configuração
+- Eventos de deploy
+
+**Verificação de integridade:**
+```rust
+// Verifica toda a cadeia re-computando os hashes
+chain_agent.verify_integrity().await?;
+```
 
 ---
 
