@@ -4,7 +4,7 @@
 # ============================================================
 
 # Stage 1: Build
-FROM rust:1.85-slim AS builder
+FROM rust:latest AS builder
 
 RUN apt-get update && apt-get install -y \
     pkg-config \
