@@ -3,7 +3,7 @@
 
 # === Rust ===
 target/
-Cargo.lock
+# Note: Cargo.lock is intentionally tracked (application, not library)
 
 # === Go ===
 picoclaw/picoclaw
