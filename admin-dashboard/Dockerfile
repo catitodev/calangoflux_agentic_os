@@ -29,8 +29,8 @@ FROM nginx:alpine AS runtime
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Add custom nginx config for SPA routing and Cloud Run PORT
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Add custom nginx config directly (port hardcoded to 8084)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built static files
 COPY --from=builder /app/dist /usr/share/nginx/html
