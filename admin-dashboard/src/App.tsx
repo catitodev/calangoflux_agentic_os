@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, CSSProperties } from 'react';
+import logo from './assets/logo.png';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -536,7 +537,7 @@ function App() {
       {/* ─── Sidebar ─── */}
       <aside style={styles.sidebar}>
         <div style={styles.sidebarLogo}>
-          <span style={styles.sidebarLogoEmoji}>🦎</span>
+          <img src={logo} alt="CalangoFlux" style={{ width: '36px', height: '36px', borderRadius: '8px' }} />
           <span style={styles.sidebarLogoText}>CalangoFlux</span>
         </div>
 
@@ -579,126 +580,164 @@ function App() {
 
         {/* Content */}
         <div style={styles.content}>
-          {/* ─── Visão Geral ─── */}
-          <h2 style={styles.sectionTitle}>
-            <span style={styles.sectionIcon}>📊</span>
-            Visão Geral
-          </h2>
-          <div style={styles.metricsGrid}>
-            <div style={styles.metricCard}>
-              <div style={styles.metricLabel}>Agentes Ativos</div>
-              <div style={styles.metricValue}>
-                5<span style={styles.metricSuffix}>/5</span>
-              </div>
-            </div>
-            <div style={styles.metricCard}>
-              <div style={styles.metricLabel}>Mensagens/min</div>
-              <div style={styles.metricValue}>42</div>
-            </div>
-            <div style={styles.metricCard}>
-              <div style={styles.metricLabel}>Taxa de Erro</div>
-              <div style={{ ...styles.metricValue, color: colors.green }}>
-                0.2<span style={styles.metricSuffix}>%</span>
-              </div>
-            </div>
-            <div style={styles.metricCard}>
-              <div style={styles.metricLabel}>Uptime</div>
-              <div style={{ ...styles.metricValue, color: colors.accent }}>
-                99.9<span style={styles.metricSuffix}>%</span>
-              </div>
-            </div>
-          </div>
-
-          {/* ─── Status dos Agentes ─── */}
-          <h2 style={styles.sectionTitle}>
-            <span style={styles.sectionIcon}>🤖</span>
-            Status dos Agentes
-          </h2>
-          <div style={styles.agentsGrid}>
-            {agentsData.map((agent) => (
-              <div key={agent.id} style={styles.agentCard}>
-                <div style={styles.agentHeader}>
-                  <div style={styles.agentInfo}>
-                    <span
-                      style={{
-                        ...styles.agentStatusDot,
-                        backgroundColor: getStatusColor(agent.status),
-                        boxShadow: `0 0 6px ${getStatusColor(agent.status)}60`,
-                      }}
-                    />
-                    <div>
-                      <div style={styles.agentName}>{agent.name}</div>
-                      <div style={styles.agentRole}>{agent.role}</div>
-                    </div>
+          {/* ─── Visão Geral (sempre visível) ─── */}
+          {activeNav === 'agentes' && (
+            <>
+              <h2 style={styles.sectionTitle}>
+                <span style={styles.sectionIcon}>📊</span>
+                Visão Geral
+              </h2>
+              <div style={styles.metricsGrid}>
+                <div style={styles.metricCard}>
+                  <div style={styles.metricLabel}>Agentes Ativos</div>
+                  <div style={styles.metricValue}>
+                    5<span style={styles.metricSuffix}>/5</span>
                   </div>
                 </div>
-                <div style={styles.agentMetric}>
-                  {agent.metricLabel}: {agent.metric}
+                <div style={styles.metricCard}>
+                  <div style={styles.metricLabel}>Mensagens/min</div>
+                  <div style={styles.metricValue}>42</div>
                 </div>
-                <div style={styles.agentFooter}>
-                  <span
-                    style={{
-                      ...styles.agentStatusLabel,
-                      color: getStatusColor(agent.status),
-                    }}
-                  >
-                    ● {getStatusLabel(agent.status)}
-                  </span>
-                  <button style={styles.killButton}>Encerrar</button>
+                <div style={styles.metricCard}>
+                  <div style={styles.metricLabel}>Taxa de Erro</div>
+                  <div style={{ ...styles.metricValue, color: colors.green }}>
+                    0.2<span style={styles.metricSuffix}>%</span>
+                  </div>
+                </div>
+                <div style={styles.metricCard}>
+                  <div style={styles.metricLabel}>Uptime</div>
+                  <div style={{ ...styles.metricValue, color: colors.accent }}>
+                    99.9<span style={styles.metricSuffix}>%</span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+
+              {/* ─── Status dos Agentes ─── */}
+              <h2 style={styles.sectionTitle}>
+                <span style={styles.sectionIcon}>🤖</span>
+                Status dos Agentes
+              </h2>
+              <div style={styles.agentsGrid}>
+                {agentsData.map((agent) => (
+                  <div key={agent.id} style={styles.agentCard}>
+                    <div style={styles.agentHeader}>
+                      <div style={styles.agentInfo}>
+                        <span
+                          style={{
+                            ...styles.agentStatusDot,
+                            backgroundColor: getStatusColor(agent.status),
+                            boxShadow: `0 0 6px ${getStatusColor(agent.status)}60`,
+                          }}
+                        />
+                        <div>
+                          <div style={styles.agentName}>{agent.name}</div>
+                          <div style={styles.agentRole}>{agent.role}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={styles.agentMetric}>
+                      {agent.metricLabel}: {agent.metric}
+                    </div>
+                    <div style={styles.agentFooter}>
+                      <span
+                        style={{
+                          ...styles.agentStatusLabel,
+                          color: getStatusColor(agent.status),
+                        }}
+                      >
+                        ● {getStatusLabel(agent.status)}
+                      </span>
+                      <button style={styles.killButton} onClick={() => alert(`Encerrando ${agent.name}...`)}>Encerrar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* ─── Audit Trail ─── */}
-          <h2 style={styles.sectionTitle}>
-            <span style={styles.sectionIcon}>📋</span>
-            Audit Trail
-          </h2>
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Hora</th>
-                  <th style={styles.th}>Agente</th>
-                  <th style={styles.th}>Ação</th>
-                  <th style={styles.th}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {auditData.map((entry) => (
-                  <tr key={entry.id}>
-                    <td style={{ ...styles.td, ...styles.tdMono }}>{entry.hora}</td>
-                    <td style={{ ...styles.td, fontWeight: 500 }}>{entry.agente}</td>
-                    <td style={styles.td}>{entry.acao}</td>
-                    <td style={styles.td}>
-                      <span style={getAuditBadgeStyle(entry.status)}>
-                        {getAuditStatusLabel(entry.status)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ─── Leads Recentes ─── */}
-          <h2 style={styles.sectionTitle}>
-            <span style={styles.sectionIcon}>👥</span>
-            Leads Recentes
-          </h2>
-          <div style={styles.leadsGrid}>
-            {leadsData.map((lead) => (
-              <div key={lead.id} style={styles.leadCard}>
-                <div style={styles.leadName}>{lead.nome}</div>
-                <div style={styles.leadContact}>{lead.contato}</div>
-                <div style={styles.leadInterest}>{lead.interesse}</div>
-                <span style={getLeadStatusStyle(lead.status)}>
-                  {getLeadStatusLabel(lead.status)}
-                </span>
+          {activeNav === 'audit' && (
+            <>
+              <h2 style={styles.sectionTitle}>
+                <span style={styles.sectionIcon}>📋</span>
+                Audit Trail
+              </h2>
+              <div style={styles.tableWrapper}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Hora</th>
+                      <th style={styles.th}>Agente</th>
+                      <th style={styles.th}>Ação</th>
+                      <th style={styles.th}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditData.map((entry) => (
+                      <tr key={entry.id}>
+                        <td style={{ ...styles.td, ...styles.tdMono }}>{entry.hora}</td>
+                        <td style={{ ...styles.td, fontWeight: 500 }}>{entry.agente}</td>
+                        <td style={styles.td}>{entry.acao}</td>
+                        <td style={styles.td}>
+                          <span style={getAuditBadgeStyle(entry.status)}>
+                            {getAuditStatusLabel(entry.status)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
+            </>
+          )}
+
+          {/* ─── Leads ─── */}
+          {activeNav === 'leads' && (
+            <>
+              <h2 style={styles.sectionTitle}>
+                <span style={styles.sectionIcon}>👥</span>
+                Leads Recentes
+              </h2>
+              <div style={styles.leadsGrid}>
+                {leadsData.map((lead) => (
+                  <div key={lead.id} style={styles.leadCard}>
+                    <div style={styles.leadName}>{lead.nome}</div>
+                    <div style={styles.leadContact}>{lead.contato}</div>
+                    <div style={styles.leadInterest}>{lead.interesse}</div>
+                    <span style={getLeadStatusStyle(lead.status)}>
+                      {getLeadStatusLabel(lead.status)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ─── Configurações ─── */}
+          {activeNav === 'config' && (
+            <>
+              <h2 style={styles.sectionTitle}>
+                <span style={styles.sectionIcon}>⚙️</span>
+                Configurações
+              </h2>
+              <div style={styles.metricCard}>
+                <div style={styles.metricLabel}>Rate Limit Global</div>
+                <div style={{ ...styles.metricValue, fontSize: '20px' }}>60 req/min</div>
+              </div>
+              <div style={{ ...styles.metricCard, marginTop: '16px' }}>
+                <div style={styles.metricLabel}>Health Check Interval</div>
+                <div style={{ ...styles.metricValue, fontSize: '20px' }}>30s</div>
+              </div>
+              <div style={{ ...styles.metricCard, marginTop: '16px' }}>
+                <div style={styles.metricLabel}>Projeto GCP</div>
+                <div style={{ ...styles.metricValue, fontSize: '16px', fontFamily: 'monospace' }}>calangoflux-agentic-os-497000</div>
+              </div>
+              <div style={{ ...styles.metricCard, marginTop: '16px' }}>
+                <div style={styles.metricLabel}>VM</div>
+                <div style={{ ...styles.metricValue, fontSize: '16px', fontFamily: 'monospace' }}>34.151.199.200 (calangoflux-matrix-v2)</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
