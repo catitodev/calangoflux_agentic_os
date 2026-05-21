@@ -405,7 +405,7 @@ export function createPipeline(config: PipelineConfig): Pipeline {
       }
 
       // Send to Gemini for conversation/analysis/research
-      const response = await geminiClient.sendMessage(userMessage);
+      const response = await geminiClient.sendMessage(requestId, userMessage);
 
       // Detect leads from the Gemini response
       await leadDetector.processMessage(response, requestId, leadStorage);
